@@ -3,13 +3,11 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
-#include <time.h>
 
 //One line macro version from:
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
-#define setBit(arr, int) ( arr[int/32] |=  1 << (int % 32) )
-#define clearBit(arr, int) ( arr[int/32] &= ~(1 << (int % 32)) )
-#define testBit(arr, int) ( arr[int/32] & (1 << (k%32)) )
+#define setBit(arr, int) ( (arr)[(int)/32] |=  1 << ((int) % 32) )
+#define testBit(arr, int) ( (arr)[(int)/32] & (1 << ((int)%32)) )
 
 //total array of all numbers <=n
 int* ints;
@@ -63,8 +61,8 @@ int main( int argc, char* argv[] ){
     //manually add 2 to kickstart everything
     //TODO: refactor into something more efficient to mark all evens?
     primes[0] = 2;
-    ints[1] = 1;
-    markMultiples( 2, in);
+    setBit( ints, 2 - 1 );
+    markMultiples( 2, in );
 
 
     //TODO: my runner function for 8 threads?
@@ -85,12 +83,16 @@ int main( int argc, char* argv[] ){
 
 }
 
+///
+/// \param pMax largest address of global prime array
+/// \param iMax largest address of global int arary
+/// \param status set to 1 when all integers have been enumerated
 void seekPrime( int* pMax, const int* iMax, int* status ){
 
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     //e.g. the check status of 5 is located at ints[4]
     int i = primes[pCount] - 1;
-    while( ints[i] && i < *iMax ){
+    while( testBit(ints, i) && i < *iMax ){
 
         i++;
 
@@ -105,7 +107,7 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
     }
 
     //process this prime then pass
-    ints[i] = 1;
+    setBit(ints, i);
     pCount++;
 
     if( pCount >= *pMax ){
@@ -118,7 +120,11 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
     primes[pCount] = i + 1;
 }
 
+///
+/// \param n integer to mark multiples of
+/// \param max maximum multiple to mark
 void markMultiples ( int n, int max ){
+
 
     //0 indexed so the mark for n is at n-1
     int location = n - 1;
@@ -127,7 +133,7 @@ void markMultiples ( int n, int max ){
     while ( location + n < max ){
 
         location += n;
-        *(ints + location) = 1;
+        setBit( ints, location );
 
     }
 }
@@ -136,7 +142,7 @@ void debug( int in ){
 
     for( int i = 0; i < in; i++ ){
 
-        printf( "%d: %d ", i+1, ints[i]);
+        printf( "%u: %u ", i+1, testBit( ints, i));
 
     }
 
