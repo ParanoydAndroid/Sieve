@@ -5,6 +5,12 @@
 #include <math.h>
 #include <time.h>
 
+//One line macro version from:
+//http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
+#define setBit(arr, int) ( arr[int/32] |=  1 << (int % 32) )
+#define clearBit(arr, int) ( arr[int/32] &= ~(1 << (int % 32)) )
+#define testBit(arr, int) ( arr[int/32] & (1 << (k%32)) )
+
 //total array of all numbers <=n
 int* ints;
 
@@ -13,6 +19,7 @@ int* primes;
 
 //max index of primes with a current value
 //use: primes[pCount]
+//Make local to main?
 int pCount = 0;
 
 
