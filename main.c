@@ -3,16 +3,21 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <time.h>
 
 int* ints;
 int* primes;
 int pCount = 0;
+int done = 0;
 
 void markMultiples ( int n, int max );
-void seekPrime( int* max );
-void debug();
+void seekPrime( int* pMax, int* iMax );
+void debug( int  in );
 
 int main( int argc, char* argv[] ){
+
+    clock_t start = clock();
+
     long param = strtol( argv[1], NULL, 10 );
 
     if( param > INT_MAX ){
@@ -38,22 +43,40 @@ int main( int argc, char* argv[] ){
     int pMax = (int)initialSize;
     primes = malloc( pMax * sizeof(int) );
 
+    //manually add 2 to kickstart everything
+    //TODO: refactor into something more efficient to mark all evens?
     primes[0] = 2;
-    seekPrime( &pMax );
+    ints[1] = 1;
+    markMultiples( 2, in);
 
-    markMultiples( primes[pCount], in);
+
+    while( !done ){
+
+        seekPrime( &pMax, &in );
+        markMultiples( primes[pCount], in);
+    }
 
     debug( in );
+    clock_t stop = clock();
+    double elapsed = (double) (stop - start) / CLOCKS_PER_SEC;
+    printf("\nTime elapsed: %.5f\n", elapsed);
 
 }
 
-void seekPrime( int* max ){
+void seekPrime( int* pMax, int* iMax ){
 
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     int i = primes[pCount] - 1;
-    while( !ints[i] ){
+    while( ints[i] && i < *iMax ){
 
         i++;
+
+    }
+
+    if( i >= *iMax ){
+
+        done = 1;
+        return;
 
     }
 
@@ -61,10 +84,10 @@ void seekPrime( int* max ){
     ints[i] = 1;
     pCount++;
 
-    if( pCount >= *max ){
+    if( pCount >= *pMax ){
 
-        *max *= 2;
-        primes = realloc( primes, *max * sizeof(int) );
+        *pMax *= 2;
+        primes = realloc( primes, *pMax * sizeof(int) );
 
     }
 
@@ -89,7 +112,14 @@ void debug( int in ){
 
     for( int i = 0; i < in; i++ ){
 
-        printf( "&d: %d", i, ints[i])
+        printf( "%d: %d ", i+1, ints[i]);
+
+    }
+
+    puts("");
+    for( int i = 0; i < pCount + 1; i++ ){
+
+        printf( "%d, ", primes[i]);
 
     }
 
