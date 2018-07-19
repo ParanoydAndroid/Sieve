@@ -42,7 +42,8 @@ int main( int argc, char* argv[] ){
     const unsigned in = (unsigned int)param;
 
     //properly size the base bitarray for 'in' integers
-    ints = malloc( ( ( in * sizeof(int) ) / 32 ) + 1 );
+    int iMax = (in / 32) + 1;
+    ints = malloc( iMax * sizeof(unsigned int) );
 
     //find best initial approximation for needed prime array size
     //since realloc is expensive.  Uses the PNT
@@ -53,11 +54,17 @@ int main( int argc, char* argv[] ){
     primes = malloc( pMax * sizeof(int) );
 
     //manually add 2 to kickstart everything
-    //TODO: refactor into something more efficient to mark all evens?
     primes[0] = 2;
-    setBit( ints, 2 - 1 );
-    markMultiples( 2, in );
 
+
+   for( int i = 0; i < iMax; i++ ){
+
+       //this is the equivalent of flagging every representative of an even number in the bitset
+       //instead of manually enumerating each bit with
+       //markMultiples( 2, in );
+        ints[i] = 2863311530;
+
+    }
 
     //TODO: my runner function for 8 threads?
     while( !done ){
