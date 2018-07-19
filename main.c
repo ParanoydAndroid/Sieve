@@ -7,10 +7,10 @@
 //One line macro version from:
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
 #define setBit(arr, int) ( (arr)[(int)/32] |=  1 << ((int) % 32) )
-#define testBit(arr, int) ( (arr)[(int)/32] & (1 << ((int)%32)) )
+#define testBit(arr, int) ( (arr)[(int)/32] & (1 << ((int) % 32)) )
 
 //total array of all numbers <=n
-int* ints;
+unsigned int* ints;
 
 //result set
 int* primes;
@@ -21,37 +21,31 @@ int* primes;
 int pCount = 0;
 
 
-void markMultiples ( int n, int max );
+void markMultiples ( int n, int iMax );
 void seekPrime( int* pMax, const int* iMax, int* status );
 void debug( int  in );
 
 int main( int argc, char* argv[] ){
 
-    //testing my branch
+    //performance testing
     clock_t start = clock();
 
     int done = 0;
     long param = strtol( argv[1], NULL, 10 );
 
-    if( param > INT_MAX ){
+    if( param > UINT_MAX ){
 
         printf( "Your chosen range is significantly too large.\nPlease try again" );
         exit( EXIT_FAILURE );
     }
 
-    const int in = (int)param;
+    const unsigned in = (unsigned int)param;
 
-    if( param < 3 ){
-
-        //I dunno, do something about this
-
-    }
-
-    //create the base integer array
-    ints = malloc( (int)param * sizeof(int) );
+    //properly size the base bitarray for 'in' integers
+    ints = malloc( ( ( in * sizeof(int) ) / 32 ) + 1 );
 
     //find best initial approximation for needed prime array size
-    //since realloc is expensive
+    //since realloc is expensive.  Uses the PNT
     double initialSize = (double) in / log(in);
 
     //max addressable location of primes, when exceeded, we realloc by a factor of 2
@@ -92,6 +86,9 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     //e.g. the check status of 5 is located at ints[4]
     int i = primes[pCount] - 1;
+
+    //if testbits(ints,i) flags true, then this number has already been processed
+    //and either found prime or marked composite
     while( testBit(ints, i) && i < *iMax ){
 
         i++;
@@ -106,7 +103,7 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
 
     }
 
-    //process this prime then pass
+    //flag this prime then pass it to the primes array.
     setBit(ints, i);
     pCount++;
 
@@ -120,17 +117,17 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
     primes[pCount] = i + 1;
 }
 
-///
+/// \details takes a bit array storing iMax values and sets every multiple of n to 1
 /// \param n integer to mark multiples of
-/// \param max maximum multiple to mark
-void markMultiples ( int n, int max ){
+/// \param iMax maximum multiple to mark
+void markMultiples ( int n, int iMax ){
 
 
     //0 indexed so the mark for n is at n-1
     int location = n - 1;
 
     //we'll assume marking of n will be handled in the calling code as it loops
-    while ( location + n < max ){
+    while ( location + n < iMax ){
 
         location += n;
         setBit( ints, location );
@@ -140,18 +137,10 @@ void markMultiples ( int n, int max ){
 
 void debug( int in ){
 
-    for( int i = 0; i < in; i++ ){
-
-        printf( "%u: %u ", i+1, testBit( ints, i));
-
-    }
-
-    puts("");
     for( int i = 0; i < pCount + 1; i++ ){
 
         printf( "%d, ", primes[i]);
 
     }
-
 
 }
