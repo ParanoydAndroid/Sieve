@@ -72,6 +72,7 @@ int main( int argc, char* argv[] ){
     free( ints );
     free ( primes );
     clock_t stop = clock();
+
     double elapsed = (double) (stop - start) / CLOCKS_PER_SEC;
     printf("\nTime elapsed: %.5f\n", elapsed);
 
