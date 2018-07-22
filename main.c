@@ -18,6 +18,7 @@ struct threadArgs{
 };
 
 const unsigned int MAX_THREADS = 8;
+pthread_mutex_t mutex;
 
 //total array of all numbers <=n
 unsigned int* ints;
@@ -45,6 +46,8 @@ int main( int argc, char* argv[] ){
     unsigned int threadCount = 0;
     //
 
+    //TODO: add error handling to Mutex
+    pthread_mutex_init( &mutex, NULL );
     //sentinel to determine when int array has been exhausted
     int done = 0;
     long param = strtol( argv[1], NULL, 10 );
@@ -101,6 +104,7 @@ int main( int argc, char* argv[] ){
 
     free( ints );
     free ( primes );
+    pthread_mutex_destroy( &mutex );
     clock_t stop = clock();
 
     double elapsed = (double) (stop - start) / CLOCKS_PER_SEC;
@@ -110,7 +114,6 @@ int main( int argc, char* argv[] ){
 
 void* sieve_runner( void* args ){
 
-    puts("Thread started");
     struct threadArgs* localPtrs = (struct threadArgs*)args;
 
     int* local_pMax = localPtrs -> pMax;
@@ -123,7 +126,6 @@ void* sieve_runner( void* args ){
         markMultiples( primes[pCount], *local_in );
     }
 
-    puts("thread ended");
     pthread_exit( NULL );
 }
 
@@ -134,6 +136,7 @@ void* sieve_runner( void* args ){
 /// \param status set to 1 when all integers have been enumerated
 void seekPrime( int* pMax, const int* iMax, int* status ){
 
+    pthread_mutex_lock( &mutex );
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     //e.g. the check status of 5 is located at ints[4]
     int i = primes[pCount] - 1;
@@ -163,6 +166,7 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
     }
 
     primes[pCount] = i + 1;
+    pthread_mutex_unlock( &mutex );
 }
 
 /// \details takes a bit array storing iMax values and sets every multiple of n to 1
