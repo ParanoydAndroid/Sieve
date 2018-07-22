@@ -22,7 +22,7 @@ int pCount = 0;
 
 
 void markMultiples ( int n, int iMax );
-void seekPrime( int* pMax, const int* iMax, int* status );
+void seekPrime( int* pMax, const unsigned int* iMax, int* status );
 void debug( int  in );
 
 int main( int argc, char* argv[] ){
@@ -84,11 +84,12 @@ int main( int argc, char* argv[] ){
 
 }
 
-///
+//TODO: add details
+/// \details
 /// \param pMax largest address of global prime array
 /// \param iMax largest address of global int arary
 /// \param status set to 1 when all integers have been enumerated
-void seekPrime( int* pMax, const int* iMax, int* status ){
+void seekPrime( int* pMax, const unsigned int* iMax, int* status ){
 
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     //e.g. the check status of 5 is located at ints[4]
@@ -132,6 +133,10 @@ void markMultiples ( int n, int iMax ){
 
     //0 indexed so the mark for n is at n-1
     int location = n - 1;
+
+    //Since even multiples of odd numbers are even, we only need to check the odd multiples
+    //we do that by jumping 2n bits instead of n bits when checking multiples
+    n *= 2;
 
     //we'll assume marking of n will be handled in the calling code as it loops
     while ( location + n < iMax ){
