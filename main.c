@@ -4,6 +4,8 @@
 #include <limits.h>
 #include <math.h>
 
+//TODO: add malloc and realloc error handling
+
 //One line macro version from:
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
 #define setBit(arr, int) ( (arr)[(int)/32] |=  1 << ((int) % 32) )
@@ -17,7 +19,7 @@ struct threadArgs{
 
 };
 
-const unsigned int MAX_THREADS = 8;
+const unsigned int MAX_THREADS = 4;
 pthread_mutex_t mutex;
 
 //total array of all numbers <=n
@@ -100,7 +102,7 @@ int main( int argc, char* argv[] ){
         pthread_join( tids[threadCount], NULL);
     }
 
-    debug();
+    //debug();
 
     free( ints );
     free ( primes );
@@ -109,7 +111,6 @@ int main( int argc, char* argv[] ){
 
     double elapsed = (double) (stop - start) / CLOCKS_PER_SEC;
     printf("\nTime elapsed: %.5f\n", elapsed);
-
 }
 
 void* sieve_runner( void* args ){
@@ -139,6 +140,9 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
     pthread_mutex_lock( &mutex );
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     //e.g. the check status of 5 is located at ints[4]
+
+    //TODO: convert index notation to pointer notation for speed
+    //and try to stop this segfault
     int i = primes[pCount] - 1;
 
     //if testbits(ints,i) flags true, then this number has already been processed
