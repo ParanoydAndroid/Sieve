@@ -19,7 +19,6 @@ struct threadArgs{
 
 const unsigned int MAX_THREADS = 8;
 
-
 //total array of all numbers <=n
 unsigned int* ints;
 
@@ -27,14 +26,11 @@ unsigned int* ints;
 int* primes;
 
 //max index of primes with a current value
-//use: primes[pCount]
-//Make local to main?
 int pCount = 0;
-
 
 void markMultiples ( int n, int iMax );
 void seekPrime( int* pMax, const int* iMax, int* status );
-void debug( int  in );
+void debug();
 void* sieve_runner( void* args );
 
 int main( int argc, char* argv[] ){
@@ -49,6 +45,7 @@ int main( int argc, char* argv[] ){
     unsigned int threadCount = 0;
     //
 
+    //sentinel to determine when int array has been exhausted
     int done = 0;
     long param = strtol( argv[1], NULL, 10 );
 
@@ -60,7 +57,7 @@ int main( int argc, char* argv[] ){
 
     const int in = (int)param;
 
-    //properly size the base bitarray for 'in' integers
+    //properly size the base bitarray for 'in' integers, where we store 32 flags per int array bucket;
     int iMax = (in / 32) + 1;
     ints = malloc( iMax * sizeof(unsigned int) );
 
@@ -100,7 +97,7 @@ int main( int argc, char* argv[] ){
         pthread_join( tids[threadCount], NULL);
     }
 
-    debug( in );
+    debug();
 
     free( ints );
     free ( primes );
@@ -113,11 +110,12 @@ int main( int argc, char* argv[] ){
 
 void* sieve_runner( void* args ){
 
-    struct threadArgs* localArgs = (struct threadArgs*)args;
+    puts("Thread started");
+    struct threadArgs* localPtrs = (struct threadArgs*)args;
 
-    int* local_pMax = localArgs -> pMax;
-    const int* local_in = localArgs -> in;
-    int* local_done = localArgs -> done;
+    int* local_pMax = localPtrs -> pMax;
+    const int* local_in = localPtrs -> in;
+    int* local_done = localPtrs -> done;
 
     while ( !(*local_done) ){
 
@@ -125,6 +123,7 @@ void* sieve_runner( void* args ){
         markMultiples( primes[pCount], *local_in );
     }
 
+    puts("thread ended");
     pthread_exit( NULL );
 }
 
@@ -178,7 +177,6 @@ void markMultiples ( int n, const int iMax ){
     //we do that by jumping 2n bits instead of n bits when checking multiples
     n *= 2;
 
-    //we'll assume marking of n will be handled in the calling code as it loops
     while ( location + n < iMax ){
 
         location += n;
@@ -186,7 +184,7 @@ void markMultiples ( int n, const int iMax ){
     }
 }
 
-void debug( int in ){
+void debug(){
 
     for( int i = 0; i < pCount + 1; i++ ){
 
