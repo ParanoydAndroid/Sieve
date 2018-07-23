@@ -45,11 +45,12 @@ int main( int argc, char* argv[] ){
     pthread_t tids[MAX_THREADS];
     pthread_attr_t attr;
     pthread_attr_init( &attr );
-    unsigned int threadCount = 0;
     //
 
     //sentinel to determine when int array has been exhausted
     int done = 0;
+
+
     long param = strtol( argv[1], NULL, 10 );
 
     if( param > UINT_MAX ){
@@ -67,19 +68,17 @@ int main( int argc, char* argv[] ){
     //find best initial approximation for needed prime array size
     //since realloc is expensive.  Uses the PNT
     double initialSize = (double) in / log(in);
-
-    //max addressable location of primes, when exceeded, we realloc by a factor of 2
     int pMax = (int)initialSize;
     primes = malloc( pMax * sizeof(int) );
 
+    //instantiate struct because pthread_create can only accept a single pointer to args for runner function.
     //because the struct only holds pointers, all threads can be passed the same struct
     struct threadArgs args;
     args.done = &done;
     args.in = &in;
     args.pMax = &pMax;
 
-
-    //manually add 2 to kickstart everything
+    //manually add 2 to prime array kickstart everything
     primes[0] = 2;
 
     for( int i = 0; i < iMax; i++ ){
@@ -119,6 +118,9 @@ void* sieve_runner( void* args ){
     const int* local_in = localPtrs -> in;
     int* local_done = localPtrs -> done;
 
+    //creating threads isn't sper expensive, but isn't super cheap either, so we create few threads
+    //and loop the existing threads until the job is done, instead of creating many threads which each execute
+    //a single pass of the loop.
     while ( !(*local_done) ){
 
         seekPrime( local_pMax, local_in, local_done );
@@ -136,12 +138,9 @@ void* sieve_runner( void* args ){
 void seekPrime( int* pMax, const int* iMax, int* status ){
 
     pthread_mutex_lock( &mutex );
+
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
     //e.g. the check status of 5 is located at ints[4]
-
-    //TODO: convert index notation to pointer notation for speed
-    //and try to stop this segfault
-    //printf( "pCount: %d\n", pCount);
     int i = *(primes + pCount) - 1;
 
     //if testbits(ints,i) flags true, then this number has already been processed
