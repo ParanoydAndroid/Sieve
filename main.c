@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <unistd.h>
 
 //TODO: add malloc and realloc error handling
 
@@ -16,11 +17,10 @@ struct threadArgs{
     int* pMax;
     const int* in;
     int* done;
-
 };
 
 const unsigned int MAX_THREADS = 4;
-pthread_mutex_t mutex;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //total array of all numbers <=n
 unsigned int* ints;
@@ -48,8 +48,6 @@ int main( int argc, char* argv[] ){
     unsigned int threadCount = 0;
     //
 
-    //TODO: add error handling to Mutex
-    pthread_mutex_init( &mutex, NULL );
     //sentinel to determine when int array has been exhausted
     int done = 0;
     long param = strtol( argv[1], NULL, 10 );
@@ -91,26 +89,26 @@ int main( int argc, char* argv[] ){
        ints[i] = 2863311530;
     }
 
-    while( threadCount < MAX_THREADS ){
+    for( int i = 0; i < MAX_THREADS; i++ ){
 
-        pthread_create( &(tids[threadCount]), &attr, sieve_runner, &args);
-        threadCount++;
+        pthread_create( tids + i, &attr, sieve_runner, &args);
     }
 
-    for( int i = 0; i < threadCount; i++ ){
+    for( int j = 0; j < MAX_THREADS; j++ ){
 
-        pthread_join( tids[threadCount], NULL);
+        pthread_join( tids[j], NULL );
     }
 
-    //debug();
+    debug();
 
-    free( ints );
-    free ( primes );
     pthread_mutex_destroy( &mutex );
     clock_t stop = clock();
 
     double elapsed = (double) (stop - start) / CLOCKS_PER_SEC;
     printf("\nTime elapsed: %.5f\n", elapsed);
+
+    free( ints );
+    free ( primes );
 }
 
 void* sieve_runner( void* args ){
@@ -127,7 +125,7 @@ void* sieve_runner( void* args ){
         markMultiples( primes[pCount], *local_in );
     }
 
-    pthread_exit( NULL );
+    //pthread_exit( NULL );
 }
 
 //TODO: add details
@@ -143,7 +141,8 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
 
     //TODO: convert index notation to pointer notation for speed
     //and try to stop this segfault
-    int i = primes[pCount] - 1;
+    //printf( "pCount: %d\n", pCount);
+    int i = *(primes + pCount) - 1;
 
     //if testbits(ints,i) flags true, then this number has already been processed
     //and either found prime or marked composite
@@ -156,6 +155,7 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
 
         //we have exhausted our integer array and checked for all prime candidates
         *status = 1;
+        pthread_mutex_unlock( &mutex );
         return;
     }
 
@@ -198,4 +198,6 @@ void debug(){
 
         printf( "%d, ", primes[i]);
     }
+
+    printf( "\n pCount final value: %d", pCount);
 }
