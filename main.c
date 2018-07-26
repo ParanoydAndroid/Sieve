@@ -12,6 +12,8 @@
 #define setBit(arr, int) ( (arr)[(int)/32] |=  1 << ((int) % 32) )
 #define testBit(arr, int) ( (arr)[(int)/32] & (1 << ((int) % 32)) )
 
+//threads instantiation requires a void func( void* param), so we use a void pointer to a struct
+//to pass the parameters
 struct threadArgs{
 
     int* pMax;
@@ -50,7 +52,6 @@ int main( int argc, char* argv[] ){
     //sentinel to determine when int array has been exhausted
     int done = 0;
 
-
     long param = strtol( argv[1], NULL, 10 );
 
     if( param > UINT_MAX ){
@@ -61,7 +62,7 @@ int main( int argc, char* argv[] ){
 
     const int in = (int)param;
 
-    //properly size the base bitarray for 'in' integers, where we store 32 flags per int array bucket;
+    //properly size the base bitarray for 'in' integers, where we store 32 flags per int array bucket
     int iMax = (in / 32) + 1;
     ints = malloc( iMax * sizeof(unsigned int) );
 
@@ -69,7 +70,14 @@ int main( int argc, char* argv[] ){
     //since realloc is expensive.  Uses the PNT
     double initialSize = (double) in / log(in);
     int pMax = (int)initialSize;
+
     primes = malloc( pMax * sizeof(int) );
+
+    if( primes == NULL){
+
+        perror( "Could not initially allocate sufficient space in memory" );
+        exit(EXIT_FAILURE);
+    }
 
     //instantiate struct because pthread_create can only accept a single pointer to args for runner function.
     //because the struct only holds pointers, all threads can be passed the same struct
@@ -90,7 +98,10 @@ int main( int argc, char* argv[] ){
 
     for( int i = 0; i < MAX_THREADS; i++ ){
 
-        pthread_create( tids + i, &attr, sieve_runner, &args);
+        if( pthread_create( tids + i, &attr, sieve_runner, &args ) ){
+
+            perror( "Error creating thread.  Attempting to continue" );
+        }
     }
 
     for( int j = 0; j < MAX_THREADS; j++ ){
@@ -118,7 +129,7 @@ void* sieve_runner( void* args ){
     const int* local_in = localPtrs -> in;
     int* local_done = localPtrs -> done;
 
-    //creating threads isn't sper expensive, but isn't super cheap either, so we create few threads
+    //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
     //and loop the existing threads until the job is done, instead of creating many threads which each execute
     //a single pass of the loop.
     while ( !(*local_done) ){
@@ -130,10 +141,9 @@ void* sieve_runner( void* args ){
     //pthread_exit( NULL );
 }
 
-//TODO: add details
-/// \details
+/// \details searches a global arr of consecutive ints until an unflagged entry, and adds this entry to the prime array
 /// \param pMax largest address of global prime array
-/// \param iMax largest address of global int arary
+/// \param iMax largest address of global int array
 /// \param status set to 1 when all integers have been enumerated
 void seekPrime( int* pMax, const int* iMax, int* status ){
 
@@ -166,6 +176,12 @@ void seekPrime( int* pMax, const int* iMax, int* status ){
 
         *pMax *= 2;
         primes = realloc( primes, *pMax * sizeof(int) );
+
+        if( primes == NULL ){
+
+            perror("could not allocate sufficient space.  Try again with a smaller parameter");
+            exit(EXIT_FAILURE);
+        }
     }
 
     primes[pCount] = i + 1;
