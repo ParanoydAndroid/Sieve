@@ -22,8 +22,9 @@ int threadCount;
 struct threadArgs{
 
     atomic_int* cycleDone;
+    int* done;
     atomic_int* segment;
-    int currentPrime;
+    int* currentPrime;
     int* start;
 };
 
@@ -87,7 +88,7 @@ int main( int argc, char* argv[] ){
     //find best initial approximation for needed prime array size
     //since realloc is expensive.  Uses the PNT
     double initialSize = (double) in / log(in);
-    int pMax = (int)initialSize;
+    pMax = (int)initialSize;
 
     primes = malloc( pMax * sizeof(int) );
 
@@ -106,9 +107,10 @@ int main( int argc, char* argv[] ){
     struct threadArgs args;
 
         args.cycleDone = &cycleDone;
+        args.done = &done;
         args.start = &start;
         args.segment = &segment;
-        args.currentPrime = currentPrime;
+        args.currentPrime = &currentPrime;
 
     for( int i = 0; i < iMax; i++ ){
 
@@ -136,15 +138,19 @@ int main( int argc, char* argv[] ){
 
         if( cycleDone >= threadCount ){
 
+            printf( "starting main cycle\n");
             cycleDone = 0;
             currentPrime = seekPrime( &done );
 
             if( 0 == currentPrime ){
 
+                printf( "got a 0 prime\n" );
                 break;
             }
             atomic_store( &segment, threadCount - 1 );
             start = 1;
+
+            printf("Found prime: %u\n", currentPrime);
             addPrime( currentPrime );
         }
     }
@@ -170,10 +176,11 @@ void* sieve_runner( void* args ){
 
     struct threadArgs* localPtrs = (struct threadArgs*)args;
 
-    atomic_int* local_done = localPtrs -> cycleDone;
+    atomic_int* local_cycleDone = localPtrs -> cycleDone;
+    int* local_done = localPtrs -> done;
     int* local_start = localPtrs -> start;
     atomic_int* local_segment = localPtrs -> segment;
-    int local_cPrime = localPtrs -> currentPrime;
+    int* local_cPrime = localPtrs -> currentPrime;
 
     int seg;
     //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
@@ -183,15 +190,16 @@ void* sieve_runner( void* args ){
 
         if( *local_start ){
 
+            printf( "starting thread %u cycle\n", pthread_self());
             *local_start = 0;
             seg = atomic_fetch_sub( local_segment, 1);
-            markMultiples( local_cPrime, seg );
-            atomic_fetch_add( local_done, 1);
+            markMultiples( *local_cPrime, seg );
+            atomic_fetch_add( local_cycleDone, 1);
         }
 
     }
 
-    //pthread_exit( NULL );
+    pthread_exit( NULL );
 }
 
 /// \details searches a global arr of consecutive ints until an unflagged entry, and adds this entry to the prime array
@@ -206,12 +214,12 @@ int seekPrime( int* status ){
 
     //search for the first unflagged int in the bitarray
     //if testbits(ints,i) flags true, then i has already been found prime or marked composite
-    while( testBit(ints, i) && i < iMax ){
+    while( testBit(ints, i) && i < in ){
 
         i++;
     }
 
-    if( i >= iMax ){
+    if( i >= in ){
 
         //we have exhausted our integer array and checked for all prime candidates
         *status = 1;
@@ -247,11 +255,13 @@ void addPrime( int toAdd ){
 /// \param iMax maximum multiple to mark
 void markMultiples ( int n, int segment ){
 
+    printf("thread %u has segment %u\n", pthread_self(), segment);
     int rangeLength, start, end, gap;
 
     if( segment < threadCount - 1 ){
 
         rangeLength = in/threadCount;
+        //printf("rangelength = %u\n", rangeLength);
 
         //note that "start" refers to the array index, not the number itself
         //so it will always be 1 too low (e.g. start == 250 means the first checked number will be 251)
@@ -261,23 +271,30 @@ void markMultiples ( int n, int segment ){
         end = start + rangeLength;
         gap = n - ( ( start + 1 ) % n );
         start += gap;
+
+        //printf("starting at %u, ending at %u\n", start, end);
     } else {
 
         rangeLength = in/threadCount;
         start = segment * rangeLength;
+        printf("original start: %u\n", start);
         end = in;
         gap = n - ( ( start + 1 ) % n );
+
+        if( n == gap ){
+
+            gap = 0;
+        }
+        printf("gap value = %u\n", gap);
         start += gap;
+        printf("starting at %u, ending at %u, with prime %u\n", start, end, n);
     }
 
-    //Since even multiples of odd numbers are even, we only need to check the odd multiples
-    //we do that by jumping 2n bits instead of n bits when checking multiples
-    n *= 2;
+    while ( start < end  ){
 
-    while ( start + n < end  ){
-
-        start += n;
+        printf("marking %u, which represents %u\n", start, start + 1);
         setBit( ints, start );
+        start += n;
     }
 }
 
