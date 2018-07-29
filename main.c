@@ -14,7 +14,6 @@
 
 
 const unsigned int MAX_THREADS = 2;
-int threadCount;
 
 //threads instantiation requires a void func( void* param), so we use a void pointer to a struct
 //to pass the parameters
@@ -67,10 +66,16 @@ int main( int argc, char* argv[] ){
     //sentinel to determine when int array has been exhausted and program is finished
     int done = 0;
 
-    //Threads spin until start is set to 1 in main,
-    //then main spins until all threads have finished their cycles and set cycleDone == threadCount
-    atomic_int segment, cycleDone = 0;
-    int start = 0;
+    //Threads spin until start[] is set to 1 in main for each thread,
+    //then main spins until all threads have finished their cycles and set cycleDone == MAX_THREADS
+    atomic_int segment = MAX_THREADS, cycleDone = MAX_THREADS;
+    int start[MAX_THREADS];
+    for( int i = 0; i < MAX_THREADS; i++ ){
+
+        start[i] = 0;
+    }
+
+    atomic_store( &segment, MAX_THREADS - 1 );
 
     //grab the input, and if there's no narrowing cast, convert it to an int.
     long param = strtol( argv[1], NULL, 10 );
@@ -108,9 +113,9 @@ int main( int argc, char* argv[] ){
 
         args.cycleDone = &cycleDone;
         args.done = &done;
-        args.start = &start;
         args.segment = &segment;
         args.currentPrime = &currentPrime;
+        args.start = start;
 
     for( int i = 0; i < iMax; i++ ){
 
@@ -123,20 +128,16 @@ int main( int argc, char* argv[] ){
 
         if( pthread_create( tids + i, &attr, sieve_runner, &args ) ){
 
-            threadCount--;
-            perror( "Error creating thread.  Attempting to continue" );
+            perror( "System Error: cannot create thread" );
+            exit(EXIT_FAILURE);
         }
 
-        threadCount++;
-        printf("thread created: %u\n", threadCount);
+        printf("thread created: %u\n", i);
     }
-
-    //need to release the first semaphore so main will run for the first time
-    cycleDone = threadCount;
 
     while( !done ){
 
-        if( cycleDone >= threadCount ){
+        if( cycleDone >= MAX_THREADS ){
 
             printf( "starting main cycle\n");
             cycleDone = 0;
@@ -147,8 +148,11 @@ int main( int argc, char* argv[] ){
                 printf( "got a 0 prime\n" );
                 break;
             }
-            atomic_store( &segment, threadCount - 1 );
-            start = 1;
+
+            for( int i = 0; i < MAX_THREADS; i++ ){
+
+                start[i] = 1;
+            }
 
             printf("Found prime: %u\n", currentPrime);
             addPrime( currentPrime );
@@ -159,7 +163,6 @@ int main( int argc, char* argv[] ){
     for( int j = 0; j < MAX_THREADS; j++ ){
 
         pthread_join( tids[j], NULL );
-        threadCount--;
     }
 
     debug();
@@ -182,19 +185,23 @@ void* sieve_runner( void* args ){
     atomic_int* local_segment = localPtrs -> segment;
     int* local_cPrime = localPtrs -> currentPrime;
 
-    int seg;
+    printf( "thread %u attempting to grab segment\n", pthread_self());
+    int seg = atomic_fetch_sub( local_segment, 1 );
+    printf("thread %u got segment %u\n", pthread_self(), seg);
+
     //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
     //and loop the existing threads until the job is done, instead of creating many threads which each execute
     //a single pass of the loop.
     while ( !(*local_done) ){
 
-        if( *local_start ){
+        if( local_start[seg] ){
 
-            printf( "starting thread %u cycle\n", pthread_self());
-            *local_start = 0;
-            seg = atomic_fetch_sub( local_segment, 1);
             markMultiples( *local_cPrime, seg );
+
+            printf("thread %u attempting to finish\n", pthread_self());
             atomic_fetch_add( local_cycleDone, 1);
+            printf("thread %u finished and cycleDone = %u\n", pthread_self(), *local_cycleDone);
+            local_start[seg] = 0;
         }
 
     }
@@ -255,12 +262,12 @@ void addPrime( int toAdd ){
 /// \param iMax maximum multiple to mark
 void markMultiples ( int n, int segment ){
 
-    printf("thread %u has segment %u\n", pthread_self(), segment);
+    //printf("thread %u has segment %u\n", pthread_self(), segment);
     int rangeLength, start, end, gap;
 
-    if( segment < threadCount - 1 ){
+    if( segment < MAX_THREADS - 1 ){
 
-        rangeLength = in/threadCount;
+        rangeLength = in / MAX_THREADS;
         //printf("rangelength = %u\n", rangeLength);
 
         //note that "start" refers to the array index, not the number itself
@@ -275,9 +282,9 @@ void markMultiples ( int n, int segment ){
         //printf("starting at %u, ending at %u\n", start, end);
     } else {
 
-        rangeLength = in/threadCount;
+        rangeLength = in / MAX_THREADS;
         start = segment * rangeLength;
-        printf("original start: %u\n", start);
+        //printf("original start: %u\n", start);
         end = in;
         gap = n - ( ( start + 1 ) % n );
 
@@ -285,17 +292,19 @@ void markMultiples ( int n, int segment ){
 
             gap = 0;
         }
-        printf("gap value = %u\n", gap);
+        //printf("gap value = %u\n", gap);
         start += gap;
-        printf("starting at %u, ending at %u, with prime %u\n", start, end, n);
+        //printf("starting at %u, ending at %u, with prime %u\n", start, end, n);
     }
 
     while ( start < end  ){
 
-        printf("marking %u, which represents %u\n", start, start + 1);
+        //printf("marking %u, which represents %u\n", start, start + 1);
         setBit( ints, start );
         start += n;
     }
+
+    printf("ended cycle %u\n", n);
 }
 
 void debug(){
