@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdatomic.h>
 
+
 //One line macro version from:
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
 #define setBit(arr, int) ( (arr)[(int)/32] |=  1 << ((int) % 32) )
@@ -14,7 +15,6 @@
 
 const unsigned int MAX_THREADS = 2;
 int threadCount;
-atomic_int cycleDone, segment;
 
 //threads instantiation requires a void func( void* param), so we use a void pointer to a struct
 //to pass the parameters
@@ -46,9 +46,9 @@ int pCount = 0;
 //max allocated index for primes
 int pMax;
 
-void markMultiples ( int n, int iMax );
+void markMultiples ( int n, int segment );
 int seekPrime( int* status );
-void addPrime( int* arr, int index, int toAdd );
+void addPrime( int toAdd );
 void* sieve_runner( void* args );
 void debug();
 
@@ -68,7 +68,7 @@ int main( int argc, char* argv[] ){
 
     //Threads spin until start is set to 1 in main,
     //then main spins until all threads have finished their cycles and set cycleDone == threadCount
-    int cycleDone = 0;
+    atomic_int segment, cycleDone = 0;
     int start = 0;
 
     //grab the input, and if there's no narrowing cast, convert it to an int.
@@ -126,7 +126,11 @@ int main( int argc, char* argv[] ){
         }
 
         threadCount++;
+        printf("thread created: %u\n", threadCount);
     }
+
+    //need to release the first semaphore so main will run for the first time
+    cycleDone = threadCount;
 
     while( !done ){
 
@@ -141,7 +145,7 @@ int main( int argc, char* argv[] ){
             }
             atomic_store( &segment, threadCount - 1 );
             start = 1;
-            addPrime( primes, pCount, currentPrime );
+            addPrime( currentPrime );
         }
     }
 
@@ -166,7 +170,7 @@ void* sieve_runner( void* args ){
 
     struct threadArgs* localPtrs = (struct threadArgs*)args;
 
-    int* local_done = localPtrs -> cycleDone;
+    atomic_int* local_done = localPtrs -> cycleDone;
     int* local_start = localPtrs -> start;
     atomic_int* local_segment = localPtrs -> segment;
     int local_cPrime = localPtrs -> currentPrime;
@@ -216,15 +220,17 @@ int seekPrime( int* status ){
 
     //flag this prime then pass it to the primes array.
     setBit(ints, i);
-    pCount++;
 
     return i + 1;
+}
 
-    //TODO: move this out into addPrime
-/*    if( pCount >= *pMax ){
+void addPrime( int toAdd ){
 
-        *pMax *= 2;
-        primes = realloc( primes, *pMax * sizeof(int) );
+    pCount++;
+    if( pCount >= pMax ){
+
+        pMax *= 2;
+        primes = realloc( primes, pMax * sizeof(int) );
 
         if( primes == NULL ){
 
@@ -233,9 +239,9 @@ int seekPrime( int* status ){
         }
     }
 
-    primes[pCount] = i + 1;*/
-}
+    primes[pCount] = toAdd;
 
+}
 /// \details takes a bit array storing iMax values and sets every multiple of n to 1
 /// \param n integer to mark multiples of
 /// \param iMax maximum multiple to mark
