@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <stdatomic.h>
 
+//TODO: Remove a billion debug statements
+//TODO: change iterators to use sqrt(n) instead of n
 
 //One line macro version from:
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
@@ -145,7 +147,6 @@ int main( int argc, char* argv[] ){
 
             if( 0 == currentPrime ){
 
-                printf( "got a 0 prime\n" );
                 break;
             }
 
@@ -308,10 +309,10 @@ void markMultiples ( int n, int segment ){
 
 void debug(){
 
-    for( int i = 0; i < pCount + 1; i++ ){
+    /*for( int i = 0; i < pCount + 1; i++ ){
 
         printf( "%d, ", primes[i]);
-    }
+    }*/
 
     printf( "\n pCount final value: %d", pCount);
 }
