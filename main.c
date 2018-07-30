@@ -132,14 +132,14 @@ int main( int argc, char* argv[] ){
             exit(EXIT_FAILURE);
         }
 
-        printf("thread created: %u\n", i);
+        //printf("thread created: %u\n", i);
     }
 
     while( !done ){
 
         if( cycleDone >= MAX_THREADS ){
 
-            printf( "starting main cycle\n");
+            //printf( "starting main cycle\n");
             cycleDone = 0;
             currentPrime = seekPrime( &done );
 
@@ -154,7 +154,7 @@ int main( int argc, char* argv[] ){
                 start[i] = 1;
             }
 
-            printf("Found prime: %u\n", currentPrime);
+            //printf("Found prime: %u\n", currentPrime);
             addPrime( currentPrime );
         }
     }
@@ -185,9 +185,9 @@ void* sieve_runner( void* args ){
     atomic_int* local_segment = localPtrs -> segment;
     int* local_cPrime = localPtrs -> currentPrime;
 
-    printf( "thread %u attempting to grab segment\n", pthread_self());
+    //printf( "thread %u attempting to grab segment\n", pthread_self());
     int seg = atomic_fetch_sub( local_segment, 1 );
-    printf("thread %u got segment %u\n", pthread_self(), seg);
+    //printf("thread %u got segment %u\n", pthread_self(), seg);
 
     //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
     //and loop the existing threads until the job is done, instead of creating many threads which each execute
@@ -196,12 +196,11 @@ void* sieve_runner( void* args ){
 
         if( local_start[seg] ){
 
-            markMultiples( *local_cPrime, seg );
-
-            printf("thread %u attempting to finish\n", pthread_self());
-            atomic_fetch_add( local_cycleDone, 1);
-            printf("thread %u finished and cycleDone = %u\n", pthread_self(), *local_cycleDone);
             local_start[seg] = 0;
+            markMultiples( *local_cPrime, seg );
+            //printf("thread %u attempting to finish\n", pthread_self());
+            atomic_fetch_add( local_cycleDone, 1);
+            //printf("thread %u finished and cycleDone = %u\n", pthread_self(), *local_cycleDone);
         }
 
     }
@@ -304,7 +303,7 @@ void markMultiples ( int n, int segment ){
         start += n;
     }
 
-    printf("ended cycle %u\n", n);
+    //printf("ended cycle %u\n", n);
 }
 
 void debug(){
