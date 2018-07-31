@@ -5,8 +5,9 @@
 #include <math.h>
 #include <unistd.h>
 #include <stdatomic.h>
+#include <locale.h>
 
-//TODO: Remove a billion debug statements
+
 //TODO: change iterators to use sqrt(n) instead of n
 
 //One line macro version from:
@@ -29,23 +30,20 @@ struct threadArgs{
     int* start;
 };
 
-
-//total array of all numbers <=n
-unsigned int* ints;
-
 //input number
 int in;
 
-//max addressable index.  ~= in / 32
+//ints array holds the entire range 1 - input; primes holds the found primes
+//each array has a max variable denoting it's maximum allocated size, and primes
+//has an index variable holding the most recently assigned index
+
+unsigned int* ints;
+
+//~= in / 32 because we use a bitArray
 int iMax;
 
-//result set
 int* primes;
-
-//max index of primes with a current value
 int pCount = 0;
-
-//max allocated index for primes
 int pMax;
 
 void markMultiples ( int n, int segment );
@@ -65,12 +63,14 @@ int main( int argc, char* argv[] ){
     pthread_attr_init( &attr );
     //
 
-    //sentinel to determine when int array has been exhausted and program is finished
+    //sentinels to determine when individual runs have completed
+    // and when int array has been exhausted and program is finished
+    atomic_int cycleDone = MAX_THREADS;
     int done = 0;
 
-    //Threads spin until start[] is set to 1 in main for each thread,
+    //Threads spin until start[] is set to 1 for each thread, based on the segment that thread is handling
     //then main spins until all threads have finished their cycles and set cycleDone == MAX_THREADS
-    atomic_int segment = MAX_THREADS, cycleDone = MAX_THREADS;
+    atomic_int segment;
     int start[MAX_THREADS];
     for( int i = 0; i < MAX_THREADS; i++ ){
 
@@ -133,15 +133,12 @@ int main( int argc, char* argv[] ){
             perror( "System Error: cannot create thread" );
             exit(EXIT_FAILURE);
         }
-
-        //printf("thread created: %u\n", i);
     }
 
     while( !done ){
 
         if( cycleDone >= MAX_THREADS ){
 
-            //printf( "starting main cycle\n");
             cycleDone = 0;
             currentPrime = seekPrime( &done );
 
@@ -150,12 +147,13 @@ int main( int argc, char* argv[] ){
                 break;
             }
 
+            //once currentPrime has been set, hand off to threads to mark
+            //multiples in ints
             for( int i = 0; i < MAX_THREADS; i++ ){
 
                 start[i] = 1;
             }
 
-            //printf("Found prime: %u\n", currentPrime);
             addPrime( currentPrime );
         }
     }
@@ -176,6 +174,8 @@ int main( int argc, char* argv[] ){
     free ( primes );
 }
 
+/// \brief spins threads until main sets start[], then marksMultiples, increment cycleDone and spin
+/// \param args threadArgs struct
 void* sieve_runner( void* args ){
 
     struct threadArgs* localPtrs = (struct threadArgs*)args;
@@ -186,9 +186,7 @@ void* sieve_runner( void* args ){
     atomic_int* local_segment = localPtrs -> segment;
     int* local_cPrime = localPtrs -> currentPrime;
 
-    //printf( "thread %u attempting to grab segment\n", pthread_self());
     int seg = atomic_fetch_sub( local_segment, 1 );
-    //printf("thread %u got segment %u\n", pthread_self(), seg);
 
     //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
     //and loop the existing threads until the job is done, instead of creating many threads which each execute
@@ -199,9 +197,7 @@ void* sieve_runner( void* args ){
 
             local_start[seg] = 0;
             markMultiples( *local_cPrime, seg );
-            //printf("thread %u attempting to finish\n", pthread_self());
             atomic_fetch_add( local_cycleDone, 1);
-            //printf("thread %u finished and cycleDone = %u\n", pthread_self(), *local_cycleDone);
         }
 
     }
@@ -209,7 +205,7 @@ void* sieve_runner( void* args ){
     pthread_exit( NULL );
 }
 
-/// \details searches a global arr of consecutive ints until an unflagged entry, and adds this entry to the prime array
+/// \brief searches a global arr of consecutive ints until an unflagged entry, and adds this entry to the prime array
 /// \param pMax largest address of global prime array
 /// \param iMax largest address of global int array
 /// \param status set to 1 when all integers have been enumerated
@@ -257,54 +253,43 @@ void addPrime( int toAdd ){
     primes[pCount] = toAdd;
 
 }
-/// \details takes a bit array storing iMax values and sets every multiple of n to 1
+/// \brief takes a bit array storing iMax values and sets every multiple of n to 1
 /// \param n integer to mark multiples of
 /// \param iMax maximum multiple to mark
 void markMultiples ( int n, int segment ){
 
-    //printf("thread %u has segment %u\n", pthread_self(), segment);
     int rangeLength, start, end, gap;
+
+    //note that "start" refers to the array index, not the number itself
+    //so it will always be 1 too low (e.g. start == 250 means the first checked number will be 251)
+    //We get the number value by adding 1, then calculate the first multiple of the given prime with gap
+    //in the segment this thread is handling
+    rangeLength = in / MAX_THREADS;
+    start = segment * rangeLength;
+    gap = n - ( ( start + 1 ) % n );
+
+    if( n == gap ){
+
+        gap = 0;
+    }
+
+    start += gap;
 
     if( segment < MAX_THREADS - 1 ){
 
-        rangeLength = in / MAX_THREADS;
-        //printf("rangelength = %u\n", rangeLength);
-
-        //note that "start" refers to the array index, not the number itself
-        //so it will always be 1 too low (e.g. start == 250 means the first checked number will be 251)
-        //We get the number value by adding 1, then calculate the first multiple of the given prime
-        //in the segment this thread is handling
-        start = segment * rangeLength;
         end = start + rangeLength;
-        gap = n - ( ( start + 1 ) % n );
-        start += gap;
 
-        //printf("starting at %u, ending at %u\n", start, end);
     } else {
 
-        rangeLength = in / MAX_THREADS;
-        start = segment * rangeLength;
-        //printf("original start: %u\n", start);
         end = in;
-        gap = n - ( ( start + 1 ) % n );
 
-        if( n == gap ){
-
-            gap = 0;
-        }
-        //printf("gap value = %u\n", gap);
-        start += gap;
-        //printf("starting at %u, ending at %u, with prime %u\n", start, end, n);
     }
 
     while ( start < end  ){
 
-        //printf("marking %u, which represents %u\n", start, start + 1);
         setBit( ints, start );
         start += n;
     }
-
-    //printf("ended cycle %u\n", n);
 }
 
 void debug(){
@@ -314,5 +299,5 @@ void debug(){
         printf( "%d, ", primes[i]);
     }*/
 
-    printf( "\n pCount final value: %d", pCount);
+    printf( "There are %'d primes <= %u", pCount + 1, in);
 }
