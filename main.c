@@ -35,7 +35,8 @@ int in;
 //has an index variable holding the most recently assigned index
 unsigned int* ints;
 
-//~= in / 32 because we use a bitArray
+//iMax ~= in / 32 because we use a bitArray
+//pMax = PNT(in) * 2 ^ k for some k, initially 0
 int iMax, pMax;
 
 int* primes;
@@ -91,7 +92,6 @@ int main( int argc, char* argv[] ){
     //since realloc is expensive.  Uses the PNT
     double initialSize = (double) in / log(in);
     pMax = (int)initialSize;
-
     primes = malloc( pMax * sizeof(int) );
 
     if( primes == NULL ){
@@ -106,7 +106,7 @@ int main( int argc, char* argv[] ){
 
     for( int i = 0; i < iMax; i++ ){
 
-        //this is the equivalent of manually enumerating each bit with markMultiples( 2, in );
+        //this is the equivalent of manually flagging each bit with markMultiples( 2, in );
         ints[i] = 2863311530;
     }
 
@@ -129,8 +129,9 @@ int main( int argc, char* argv[] ){
         }
     }
 
-    //main loop.  Spin until all threads signal done, then make threads spin until you find a prime
-    //and set start[segment] for all segments/threads
+    //main loop.  Runs once then spins until all threads signal done,
+    //then makes threads spin until a prime is found
+    //finally sets start[segment] for all segments/threads and spins.
     while( !done ){
 
         if( cycleDone >= MAX_THREADS ){
@@ -190,6 +191,7 @@ void* sieve_runner( void* args ){
         atomic_int* local_segment = localPtrs -> segment;
         int* local_cPrime = localPtrs -> currentPrime;
 
+    //each thread is guaranteed to get a unique segment number in the discrete interval [0, MAX_THREADS - 1]
     int seg = atomic_fetch_sub( local_segment, 1 );
 
     //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
@@ -211,7 +213,9 @@ void* sieve_runner( void* args ){
 /// \brief searches a global arr of consecutive ints until an unflagged entry, and adds this entry to the prime array
 /// \param pMax implicit, global: largest address of global prime array
 /// \param iMax implicit, global: largest address of global int array
+/// \param pCount implicit, global: index of currentPrime
 /// \param status set to 1 when all integers have been enumerated
+/// \param primes implicit. global array.
 int seekPrime( int* status ){
 
     //since ints is 0 indexed, the matching bit in ints == numValue - 1
@@ -261,7 +265,8 @@ void addPrime( int toAdd ){
 }
 /// \brief takes a bit array storing iMax values and sets every multiple of n to 1
 /// \param n integer to mark multiples of
-/// \param iMax maximum multiple to mark
+/// \param segment range of the ints array in which to mark primes
+/// \param ints implicit, global: bitArray holding flags for each int [1, in]
 void markMultiples ( int n, int segment ){
 
     int rangeLength, start, end, gap;
@@ -281,6 +286,8 @@ void markMultiples ( int n, int segment ){
 
     start += gap;
 
+    // the segments are exactly equal. Since we can't guarantee that in will be divisible by MAX_THREADS, we assign
+    //all segments an equal length except the last, which just runs up until the end of ints
     if( segment < MAX_THREADS - 1 ){
 
         end = start + rangeLength;
@@ -293,7 +300,6 @@ void markMultiples ( int n, int segment ){
     for( int i = start; i < end; i += n ){
 
         setBit( ints, i);
-
     }
 }
 
