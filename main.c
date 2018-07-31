@@ -5,10 +5,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <stdatomic.h>
-#include <locale.h>
 
-
-//TODO: change iterators to use sqrt(n) instead of n
 
 //One line macro version from:
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
@@ -34,22 +31,20 @@ struct threadArgs{
 int in;
 
 //ints array holds the entire range 1 - input; primes holds the found primes
-//each array has a max variable denoting it's maximum allocated size, and primes
+//each array has a max variable denoting its maximum allocated size, and primes
 //has an index variable holding the most recently assigned index
-
 unsigned int* ints;
 
 //~= in / 32 because we use a bitArray
-int iMax;
+int iMax, pMax;
 
 int* primes;
 int pCount = 0;
-int pMax;
 
-void markMultiples ( int n, int segment );
 int seekPrime( int* status );
 void addPrime( int toAdd );
 void* sieve_runner( void* args );
+void markMultiples ( int n, int segment );
 void debug();
 
 int main( int argc, char* argv[] ){
@@ -64,7 +59,7 @@ int main( int argc, char* argv[] ){
     //
 
     //sentinels to determine when individual runs have completed
-    // and when int array has been exhausted and program is finished
+    //and when int array has been exhausted and program is finished
     atomic_int cycleDone = MAX_THREADS;
     int done = 0;
 
@@ -105,9 +100,15 @@ int main( int argc, char* argv[] ){
         exit(EXIT_FAILURE);
     }
 
-    //manually add 2 to prime array kickstart everything
+    //manually add 2 to prime array and mark every even number in the bitarray kickstart everything
     primes[0] = 2;
     int currentPrime = 2;
+
+    for( int i = 0; i < iMax; i++ ){
+
+        //this is the equivalent of manually enumerating each bit with markMultiples( 2, in );
+        ints[i] = 2863311530;
+    }
 
     //instantiate struct because pthread_create can only accept a single pointer to args for runner function.
     //because the struct only holds pointers, all threads can be passed the same struct
@@ -119,13 +120,6 @@ int main( int argc, char* argv[] ){
         args.currentPrime = &currentPrime;
         args.start = start;
 
-    for( int i = 0; i < iMax; i++ ){
-
-       //this is the equivalent of flagging every representative of an even number in the bitset
-       //instead of manually enumerating each bit with markMultiples( 2, in );
-       ints[i] = 2863311530;
-    }
-
     for( int i = 0; i < MAX_THREADS; i++ ){
 
         if( pthread_create( tids + i, &attr, sieve_runner, &args ) ){
@@ -135,6 +129,8 @@ int main( int argc, char* argv[] ){
         }
     }
 
+    //main loop.  Spin until all threads signal done, then make threads spin until you find a prime
+    //and set start[segment] for all segments/threads
     while( !done ){
 
         if( cycleDone >= MAX_THREADS ){
@@ -158,6 +154,15 @@ int main( int argc, char* argv[] ){
         }
     }
 
+    //once we've marked all composite numbers, we just have to grab
+    //the remaining primes, remembering that flag i represents number i + 1
+    for( int i = (int)sqrt( (double)in ); i < in; i++ ){
+
+        if( !testBit(ints, i) ){
+
+            addPrime( i + 1);
+        }
+    }
 
     for( int j = 0; j < MAX_THREADS; j++ ){
 
@@ -179,12 +184,11 @@ int main( int argc, char* argv[] ){
 void* sieve_runner( void* args ){
 
     struct threadArgs* localPtrs = (struct threadArgs*)args;
-
-    atomic_int* local_cycleDone = localPtrs -> cycleDone;
-    int* local_done = localPtrs -> done;
-    int* local_start = localPtrs -> start;
-    atomic_int* local_segment = localPtrs -> segment;
-    int* local_cPrime = localPtrs -> currentPrime;
+        atomic_int* local_cycleDone = localPtrs -> cycleDone;
+        int* local_done = localPtrs -> done;
+        int* local_start = localPtrs -> start;
+        atomic_int* local_segment = localPtrs -> segment;
+        int* local_cPrime = localPtrs -> currentPrime;
 
     int seg = atomic_fetch_sub( local_segment, 1 );
 
@@ -199,15 +203,14 @@ void* sieve_runner( void* args ){
             markMultiples( *local_cPrime, seg );
             atomic_fetch_add( local_cycleDone, 1);
         }
-
     }
 
     pthread_exit( NULL );
 }
 
 /// \brief searches a global arr of consecutive ints until an unflagged entry, and adds this entry to the prime array
-/// \param pMax largest address of global prime array
-/// \param iMax largest address of global int array
+/// \param pMax implicit, global: largest address of global prime array
+/// \param iMax implicit, global: largest address of global int array
 /// \param status set to 1 when all integers have been enumerated
 int seekPrime( int* status ){
 
@@ -222,19 +225,22 @@ int seekPrime( int* status ){
         i++;
     }
 
-    if( i >= in ){
+    //if i > sqrt(in), then we've marked all composites < n
+    if( i >= sqrt( (double)in) ){
 
-        //we have exhausted our integer array and checked for all prime candidates
         *status = 1;
         return 0;
     }
 
-    //flag this prime then pass it to the primes array.
+    //flag this prime
     setBit(ints, i);
 
     return i + 1;
 }
 
+/// \brief adds toAdd to primes
+/// \param primes implicit. global array.
+/// \param toAdd integer to add to (global) primes
 void addPrime( int toAdd ){
 
     pCount++;
@@ -262,8 +268,8 @@ void markMultiples ( int n, int segment ){
 
     //note that "start" refers to the array index, not the number itself
     //so it will always be 1 too low (e.g. start == 250 means the first checked number will be 251)
-    //We get the number value by adding 1, then calculate the first multiple of the given prime with gap
-    //in the segment this thread is handling
+    //So we get the number value by adding 1, then calculate the first multiple of the given prime
+    //in the segment this thread is handling using gap
     rangeLength = in / MAX_THREADS;
     start = segment * rangeLength;
     gap = n - ( ( start + 1 ) % n );
@@ -282,13 +288,12 @@ void markMultiples ( int n, int segment ){
     } else {
 
         end = in;
-
     }
 
-    while ( start < end  ){
+    for( int i = start; i < end; i += n ){
 
-        setBit( ints, start );
-        start += n;
+        setBit( ints, i);
+
     }
 }
 
@@ -299,5 +304,5 @@ void debug(){
         printf( "%d, ", primes[i]);
     }*/
 
-    printf( "There are %'d primes <= %u", pCount + 1, in);
+    printf( "There are %u primes <= %u\n", pCount + 1, in);
 }
