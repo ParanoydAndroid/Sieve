@@ -30,16 +30,15 @@ struct threadArgs{
 //input number
 int in;
 
-//ints array holds the entire range 1 - input; primes holds the found primes
+//ints array holds the discrete interval [1, input]; primes holds the found primes
 //each array has a max variable denoting its maximum allocated size, and primes
-//has an index variable holding the most recently assigned index
+//has a count variable holding the most recently assigned index
 unsigned int* ints;
+int* primes;
 
 //iMax ~= in / 32 because we use a bitArray
 //pMax = PNT(in) * 2 ^ k for some k, initially 0
 int iMax, pMax;
-
-int* primes;
 int pCount = 0;
 
 int seekPrime( int* status );
@@ -130,8 +129,8 @@ int main( int argc, char* argv[] ){
     }
 
     //main loop.  Runs once then spins until all threads signal done,
-    //then makes threads spin until a prime is found
-    //finally sets start[segment] for all segments/threads and spins.
+    //then threads spin until a prime is found
+    //finally causes all threads to run with start[segment] for all segments and loops back.
     while( !done ){
 
         if( cycleDone >= MAX_THREADS ){
@@ -139,7 +138,7 @@ int main( int argc, char* argv[] ){
             cycleDone = 0;
             currentPrime = seekPrime( &done );
 
-            if( 0 == currentPrime ){
+            if( 0 == currentPrime ){ // ...|| done )
 
                 break;
             }
@@ -156,7 +155,7 @@ int main( int argc, char* argv[] ){
     }
 
     //once we've marked all composite numbers, we just have to grab
-    //the remaining primes, remembering that flag i represents number i + 1
+    //the remaining primes > sqrt( in ), remembering that flag i represents number i + 1
     for( int i = (int)sqrt( (double)in ); i < in; i++ ){
 
         if( !testBit(ints, i) ){
@@ -173,8 +172,9 @@ int main( int argc, char* argv[] ){
     debug();
     clock_t stop = clock();
 
+    //Note CLOCKS_PER_SEC is a constant 1,000,000/s and does not reflect system performance, so all times are nominal
     double elapsed = (double) (stop - startTime) / CLOCKS_PER_SEC;
-    printf("\nTime elapsed: %.5f\n", elapsed);
+    printf("\n Normalized Time elapsed: %.5f\n", elapsed);
 
     free( ints );
     free ( primes );
@@ -197,6 +197,8 @@ void* sieve_runner( void* args ){
     //creating threads isn't super expensive, but isn't super cheap either, so we create few threads
     //and loop the existing threads until the job is done, instead of creating many threads which each execute
     //a single pass of the loop.
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wfor-loop-analysis" //loop condition variable is set outside loop.
     while ( !(*local_done) ){
 
         if( local_start[seg] ){
@@ -206,6 +208,7 @@ void* sieve_runner( void* args ){
             atomic_fetch_add( local_cycleDone, 1);
         }
     }
+    #pragma clang diagnostic pop
 
     pthread_exit( NULL );
 }
